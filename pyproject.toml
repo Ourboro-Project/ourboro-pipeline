@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ourboro-pipeline"
+version = "0.1.0"
+description = "Internal tooling for comparing, mapping, and preparing Ourboro/OIS survey data."
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[project.scripts]
+ourboro-pipeline = "ourboro_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
