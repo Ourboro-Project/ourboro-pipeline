@@ -65,11 +65,21 @@ def compare_column_sets(
     followup_set = set(followup_headers)
     master_set = set(master_headers)
 
+    followup_indexes = {
+        column: index
+        for index, column in enumerate(followup_headers, start=1)
+    }
+
+    master_indexes = {
+        column: index
+        for index, column in enumerate(master_headers, start=1)
+    }
+    
     columns_in_both = [
         {
             "column": column,
-            "followup_index": followup_headers.index(column) + 1,
-            "master_index": master_headers.index(column) + 1,
+            "followup_index": followup_indexes[column],
+            "master_index": master_indexes[column],
             "column_family": classify_column(column),
         }
         for column in followup_headers
