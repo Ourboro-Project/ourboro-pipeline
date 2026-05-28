@@ -1,10 +1,11 @@
 from pathlib import Path
+import csv
 
 import click
 
 from ourboro_pipeline.columns import compare_column_sets, propose_y2_mappings
 from ourboro_pipeline.files import read_headers, write_dicts_csv
-
+from ourboro_pipeline.review import build_y2_mapping_review, generate_review_json, summarize_mappings
 
 @click.group()
 def main() -> None:
@@ -12,6 +13,77 @@ def main() -> None:
     Ourboro/OIS survey data pipeline tools.
     """
 
+@main.command("mapping-review")
+@click.option(
+    "--mappings-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to possible_y2_mappings.csv.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory where mapping review artifacts will be written.",
+)
+def mapping_review(mappings_csv: Path, output_dir: Path) -> None:
+    """
+    Generate human-readable and machine-readable Y2 mapping review artifacts.
+    """
+    required_fields = {
+        "followup_column_index",
+        "followup_column",
+        "column_family",
+        "exists_exact_in_master",
+        "y0_exists_in_master",
+        "y1_exists_in_master",
+        "y2_exists_in_master",
+        "proposed_target_column",
+        "confidence",
+        "reason",
+    }
+
+    with mappings_csv.open("r", encoding="utf-8-sig", newline="") as f:
+        reader = csv.DictReader(f)
+
+        if reader.fieldnames is None:
+            raise click.ClickException(f"{mappings_csv} is empty or missing a header row.")
+
+        missing_fields = required_fields - set(reader.fieldnames)
+        if missing_fields:
+            missing = ", ".join(sorted(missing_fields))
+            raise click.ClickException(
+                f"{mappings_csv} is missing required columns: {missing}"
+            )
+
+        rows: list[dict[str, object]] = list(reader)
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    markdown_path = output_dir / "y2_mapping_review.md"
+    json_path = output_dir / "y2_mappings.json"
+
+    markdown_path.write_text(
+        build_y2_mapping_review(rows),
+        encoding="utf-8",
+    )
+
+    generate_review_json(
+        rows=rows,
+        output_path=json_path,
+        source_file=mappings_csv,
+    )
+
+    summary = summarize_mappings(rows)
+
+    click.echo("Y2 Mapping Review")
+    click.echo("=" * 80)
+    click.echo(f"Mappings CSV: {mappings_csv}")
+    click.echo(f"Total mappings: {summary['total']}")
+    click.echo("")
+    click.echo("Generated files:")
+    click.echo(f"- {markdown_path}")
+    click.echo(f"- {json_path}")
 
 @main.command("compare-columns")
 @click.option(
