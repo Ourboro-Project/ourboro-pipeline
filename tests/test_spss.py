@@ -1,4 +1,8 @@
-from ourboro_pipeline.spss import iter_spss_statements, parse_variable_label
+from ourboro_pipeline.spss import (
+    iter_spss_statements,
+    parse_value_labels,
+    parse_variable_label,
+)
 
 
 def test_keeps_multiline_value_labels_together() -> None:
@@ -95,3 +99,67 @@ def test_parse_variable_label_returns_none_for_unrelated_statement() -> None:
     statement = "VALUE LABELS Q1 1 'Yes' 2 'No'."
 
     assert parse_variable_label(statement) is None
+
+
+def test_parse_value_labels_parses_multiline_value_labels() -> None:
+    statement = """VALUE LABELS Y1_Q1
+    1 'Urban'
+    2 'Suburban'
+    3 'Rural'."""
+
+    assert parse_value_labels(statement) == [
+        {"variable": "Y1_Q1", "value": "1", "value_label": "Urban"},
+        {"variable": "Y1_Q1", "value": "2", "value_label": "Suburban"},
+        {"variable": "Y1_Q1", "value": "3", "value_label": "Rural"},
+    ]
+
+
+def test_parse_value_labels_parses_single_line_value_labels() -> None:
+    statement = "Value Labels Q24 1 'Purchase a home' 2 'Stay where you are'."
+
+    assert parse_value_labels(statement) == [
+        {"variable": "Q24", "value": "1", "value_label": "Purchase a home"},
+        {"variable": "Q24", "value": "2", "value_label": "Stay where you are"},
+    ]
+
+
+def test_parse_value_labels_supports_observed_labesl_typo() -> None:
+    statement = (
+        "Value labesl buynextyear "
+        "1 'Plan to purchase' "
+        "0 'Plan to stay or rent'."
+    )
+
+    assert parse_value_labels(statement) == [
+        {
+            "variable": "buynextyear",
+            "value": "1",
+            "value_label": "Plan to purchase",
+        },
+        {
+            "variable": "buynextyear",
+            "value": "0",
+            "value_label": "Plan to stay or rent",
+        },
+    ]
+
+
+def test_parse_value_labels_handles_negative_and_decimal_values() -> None:
+    statement = (
+        "VALUE LABELS Q32order "
+        "1 'Better shape' "
+        "-1 'Worse shape' "
+        "0.5 'Partial match'."
+    )
+
+    assert parse_value_labels(statement) == [
+        {"variable": "Q32order", "value": "1", "value_label": "Better shape"},
+        {"variable": "Q32order", "value": "-1", "value_label": "Worse shape"},
+        {"variable": "Q32order", "value": "0.5", "value_label": "Partial match"},
+    ]
+
+
+def test_parse_value_labels_returns_none_for_unrelated_statement() -> None:
+    statement = "VARIABLE LABELS Q1 'Question text'."
+
+    assert parse_value_labels(statement) is None
