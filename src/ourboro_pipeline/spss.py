@@ -25,7 +25,7 @@ def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
             if char == "\n":
                 line += 1
             i += 1
-        continue
+            continue
 
         if not current:
             start_line = line
