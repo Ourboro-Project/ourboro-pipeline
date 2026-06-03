@@ -1,5 +1,9 @@
+from pathlib import Path
+
 from ourboro_pipeline.spss import (
     iter_spss_statements,
+    parse_spss_metadata_file,
+    parse_spss_metadata_text,
     parse_value_labels,
     parse_variable_label,
 )
@@ -163,3 +167,84 @@ def test_parse_value_labels_returns_none_for_unrelated_statement() -> None:
     statement = "VARIABLE LABELS Q1 'Question text'."
 
     assert parse_value_labels(statement) is None
+
+
+def test_parse_spss_metadata_text_returns_flat_rows_with_source_lines() -> None:
+    text = """VARIABLE LABELS Q1 'Question one'.
+
+VALUE LABELS Q1
+    1 'Yes'
+    0 'No'.
+"""
+
+    assert parse_spss_metadata_text(text, source_file="survey.sps") == [
+        {
+            "source_file": "survey.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+        {
+            "source_file": "survey.sps",
+            "source_line": "3",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+        {
+            "source_file": "survey.sps",
+            "source_line": "3",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "0",
+            "label": "No",
+        },
+    ]
+
+
+def test_parse_spss_metadata_text_ignores_unrelated_statements() -> None:
+    text = """COMPUTE Q1_copy = Q1.
+VARIABLE LABELS Q1 'Question one'.
+FREQUENCIES VARIABLES=Q1.
+"""
+
+    assert parse_spss_metadata_text(text) == [
+        {
+            "source_file": "",
+            "source_line": "2",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+    ]
+
+
+def test_parse_spss_metadata_file_reads_path(tmp_path: Path) -> None:
+    syntax_file = tmp_path / "labels.sps"
+    syntax_file.write_text(
+        "VALUE LABELS Q1 1 'Yes' 0 'No'.",
+        encoding="utf-8",
+    )
+
+    assert parse_spss_metadata_file(syntax_file) == [
+        {
+            "source_file": str(syntax_file),
+            "source_line": "1",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+        {
+            "source_file": str(syntax_file),
+            "source_line": "1",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "0",
+            "label": "No",
+        },
+    ]

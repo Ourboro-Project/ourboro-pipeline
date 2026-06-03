@@ -1,6 +1,60 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Iterable
+
+
+def parse_spss_metadata_file(path: Path) -> list[dict[str, str]]:
+    """
+    Parse SPSS label metadata from one syntax file.
+
+    This reads syntax text only. It does not touch SAV data or respondent rows.
+    """
+    text = path.read_text(encoding="utf-8-sig")
+    return parse_spss_metadata_text(text, source_file=str(path))
+
+
+def parse_spss_metadata_text(
+    text: str,
+    *,
+    source_file: str = "",
+) -> list[dict[str, str]]:
+    """
+    Parse VARIABLE LABELS and VALUE LABELS statements into flat metadata rows.
+
+    The row shape is intentionally CSV-friendly because the next slice will
+    write these rows as an artifact for review.
+    """
+    rows: list[dict[str, str]] = []
+
+    for source_line, statement in iter_spss_statements(text):
+        variable_label = parse_variable_label(statement)
+        if variable_label is not None:
+            rows.append({
+                "source_file": source_file,
+                "source_line": str(source_line),
+                "label_type": "variable_label",
+                "variable": variable_label["variable"],
+                "value": "",
+                "label": variable_label["variable_label"],
+            })
+            continue
+
+        value_labels = parse_value_labels(statement)
+        if value_labels is None:
+            continue
+
+        for value_label in value_labels:
+            rows.append({
+                "source_file": source_file,
+                "source_line": str(source_line),
+                "label_type": "value_label",
+                "variable": value_label["variable"],
+                "value": value_label["value"],
+                "label": value_label["value_label"],
+            })
+
+    return rows
 
 
 def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
