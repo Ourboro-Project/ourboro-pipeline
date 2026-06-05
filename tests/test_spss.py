@@ -3,7 +3,9 @@ from pathlib import Path
 from ourboro_pipeline.spss import (
     iter_spss_statements,
     parse_spss_metadata_file,
+    parse_spss_metadata_file_with_diagnostics,
     parse_spss_metadata_text,
+    parse_spss_metadata_text_with_diagnostics,
     parse_value_labels,
     parse_variable_label,
 )
@@ -246,5 +248,155 @@ def test_parse_spss_metadata_file_reads_path(tmp_path: Path) -> None:
             "variable": "Q1",
             "value": "0",
             "label": "No",
+        },
+    ]
+
+
+def test_parse_spss_metadata_text_with_diagnostics_returns_valid_rows_without_diagnostics() -> None:
+    text = """VARIABLE LABELS Q1 'Question one'.
+
+VALUE LABELS Q1
+    1 'Yes'
+    0 'No'.
+"""
+
+    result = parse_spss_metadata_text_with_diagnostics(
+        text,
+        source_file="survey.sps",
+    )
+
+    assert result["metadata_rows"] == [
+        {
+            "source_file": "survey.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+        {
+            "source_file": "survey.sps",
+            "source_line": "3",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+        {
+            "source_file": "survey.sps",
+            "source_line": "3",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "0",
+            "label": "No",
+        },
+    ]
+    assert result["diagnostics"] == []
+
+
+def test_parse_spss_metadata_text_with_diagnostics_returns_rows_and_diagnostics() -> None:
+    text = """VARIABLE LABELS Q1 'Question one'.
+COMPUTE Q1_copy = Q1.
+"""
+
+    result = parse_spss_metadata_text_with_diagnostics(
+        text,
+        source_file="survey.sps",
+    )
+
+    assert result["metadata_rows"] == [
+        {
+            "source_file": "survey.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+    ]
+    assert result["diagnostics"] == [
+        {
+            "source_file": "survey.sps",
+            "source_line": "2",
+            "severity": "info",
+            "code": "UNSUPPORTED_STATEMENT",
+            "message": "Statement is outside the current SPSS metadata parser scope.",
+            "statement": "COMPUTE Q1_copy = Q1.",
+        },
+    ]
+
+
+def test_parse_spss_metadata_text_with_diagnostics_reports_malformed_variable_labels() -> None:
+    text = "VARIABLE LABELS Q1 Missing quoted label."
+
+    result = parse_spss_metadata_text_with_diagnostics(text)
+
+    assert result["metadata_rows"] == []
+    assert result["diagnostics"] == [
+        {
+            "source_file": "",
+            "source_line": "1",
+            "severity": "warning",
+            "code": "MALFORMED_VARIABLE_LABELS",
+            "message": "VARIABLE LABELS statement could not be parsed.",
+            "statement": "VARIABLE LABELS Q1 Missing quoted label.",
+        },
+    ]
+
+
+def test_parse_spss_metadata_text_with_diagnostics_reports_malformed_value_labels() -> None:
+    text = "VALUE LABELS Q1 1 Yes."
+
+    result = parse_spss_metadata_text_with_diagnostics(text)
+
+    assert result["metadata_rows"] == []
+    assert result["diagnostics"] == [
+        {
+            "source_file": "",
+            "source_line": "1",
+            "severity": "warning",
+            "code": "MALFORMED_VALUE_LABELS",
+            "message": "VALUE LABELS statement could not be parsed.",
+            "statement": "VALUE LABELS Q1 1 Yes.",
+        },
+    ]
+
+
+def test_parse_spss_metadata_text_with_diagnostics_reports_incomplete_statement() -> None:
+    text = "COMPUTE Q1_copy = Q1"
+
+    result = parse_spss_metadata_text_with_diagnostics(text)
+
+    assert result["metadata_rows"] == []
+    assert result["diagnostics"] == [
+        {
+            "source_file": "",
+            "source_line": "1",
+            "severity": "warning",
+            "code": "INCOMPLETE_STATEMENT",
+            "message": "SPSS statement does not end with a period.",
+            "statement": "COMPUTE Q1_copy = Q1",
+        },
+    ]
+
+
+def test_parse_spss_metadata_file_with_diagnostics_reads_path(tmp_path: Path) -> None:
+    syntax_file = tmp_path / "labels.sps"
+    syntax_file.write_text(
+        "FREQUENCIES VARIABLES=Q1.",
+        encoding="utf-8",
+    )
+
+    result = parse_spss_metadata_file_with_diagnostics(syntax_file)
+
+    assert result["metadata_rows"] == []
+    assert result["diagnostics"] == [
+        {
+            "source_file": str(syntax_file),
+            "source_line": "1",
+            "severity": "info",
+            "code": "UNSUPPORTED_STATEMENT",
+            "message": "Statement is outside the current SPSS metadata parser scope.",
+            "statement": "FREQUENCIES VARIABLES=Q1.",
         },
     ]

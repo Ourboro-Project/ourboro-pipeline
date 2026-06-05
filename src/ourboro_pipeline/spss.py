@@ -14,6 +14,19 @@ def parse_spss_metadata_file(path: Path) -> list[dict[str, str]]:
     return parse_spss_metadata_text(text, source_file=str(path))
 
 
+def parse_spss_metadata_file_with_diagnostics(
+    path: Path,
+) -> dict[str, list[dict[str, str]]]:
+    """
+    Parse one syntax file and return both metadata rows and diagnostics.
+    """
+    text = path.read_text(encoding="utf-8-sig")
+    return parse_spss_metadata_text_with_diagnostics(
+        text,
+        source_file=str(path),
+    )
+
+
 def parse_spss_metadata_text(
     text: str,
     *,
@@ -21,9 +34,6 @@ def parse_spss_metadata_text(
 ) -> list[dict[str, str]]:
     """
     Parse VARIABLE LABELS and VALUE LABELS statements into flat metadata rows.
-
-    The row shape is intentionally CSV-friendly because the next slice will
-    write these rows as an artifact for review.
     """
     rows: list[dict[str, str]] = []
 
@@ -55,6 +65,102 @@ def parse_spss_metadata_text(
             })
 
     return rows
+
+
+def parse_spss_metadata_text_with_diagnostics(
+    text: str,
+    *,
+    source_file: str="",
+) -> dict[str, list[dict[str, str]]]:
+    """
+    Parse SPSS metadata rows and collect machine-readable diagnostic.
+    """
+    rows: list[dict[str, str]] = []
+    diagnostics: list[dict[str, str]] = []
+
+    for source_line, statement in iter_spss_statements(text):
+        variable_label = parse_variable_label(statement)
+        if variable_label is not None:
+            rows.append({
+                "source_file": source_file,
+                "source_line": str(source_line),
+                "label_type": "variable_label",
+                "variable": variable_label["variable"],
+                "value": "",
+                "label": variable_label["variable_label"],
+            })
+            continue
+
+        value_labels = parse_value_labels(statement)
+        if value_labels is not None:
+            for value_label in value_labels:
+                rows.append({
+                    "source_file": source_file,
+                    "source_line": str(source_line),
+                    "label_type": "value_label",
+                    "variable": value_label["variable"],
+                    "value": value_label["value"],
+                    "label": value_label["value_label"],
+                })
+
+            if not value_labels:
+                diagnostics.append(build_spss_diagnostic(
+                    source_file=source_file,
+                    source_line=source_line,
+                    severity="warning",
+                    code="MALFORMED_VALUE_LABELS",
+                    message="VALUE LABELS statement could not be parsed.",
+                    statement=statement,
+                ))
+
+            continue
+
+        if is_incomplete_statement(statement):
+            diagnostics.append(build_spss_diagnostic(
+                source_file=source_file,
+                source_line=source_line,
+                severity="warning",
+                code="INCOMPLETE_STATEMENT",
+                message="SPSS statement does not end with a period.",
+                statement=statement,
+            ))
+            continue
+
+        if looks_like_variable_labels(statement):
+            diagnostics.append(build_spss_diagnostic(
+                source_file=source_file,
+                source_line=source_line,
+                severity="warning",
+                code="MALFORMED_VARIABLE_LABELS",
+                message="VARIABLE LABELS statement could not be parsed.",
+                statement=statement,
+            ))
+            continue
+
+        if looks_like_value_labels(statement):
+            diagnostics.append(build_spss_diagnostic(
+                source_file=source_file,
+                source_line=source_line,
+                severity="warning",
+                code="MALFORMED_VALUE_LABELS",
+                message="VALUE LABELS statement could not be parsed.",
+                statement=statement,
+            ))
+            continue
+
+        diagnostics.append(build_spss_diagnostic(
+            source_file=source_file,
+            source_line=source_line,
+            severity="info",
+            code="UNSUPPORTED_STATEMENT",
+            message="Statement is outside the current SPSS metadata parser scope.",
+            statement=statement,
+        ))
+
+    return {
+        "metadata_rows": rows,
+        "diagnostics": diagnostics,
+    }      
 
 
 def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
@@ -241,3 +347,47 @@ def unquote(token: str) -> str:
     if is_quoted(token):
         return token[1:-1].replace("''", "'")
     return token
+
+
+def build_spss_diagnostic(
+    *,
+    source_file: str,
+    source_line: int,
+    severity: str,
+    code: str,
+    message: str,
+    statement: str,
+) -> dict[str, str]:
+    """
+    Build one CSV-friendly diagnostic row.
+    """
+    return {
+        "source_file": source_file,
+        "source_line": str(source_line),
+        "severity": severity,
+        "code": code,
+        "message": message,
+        "statement": statement,
+    }
+
+
+def is_incomplete_statement(statement: str) -> bool:
+    return not statement.rstrip().endswith(".")
+
+
+def looks_like_variable_labels(statement: str) -> bool:
+    words = statement.strip().split(None, 2)
+    return (
+        len(words) >= 2
+        and words[0].lower() == "variable"
+        and words[1].lower() == "labels"
+    )
+
+
+def looks_like_value_labels(statement: str) -> bool:
+    words = statement.strip().split(None, 2)
+    return (
+        len(words) >= 2
+        and words[0].lower() == "value"
+        and words[1].lower() in {"labels", "labesl"}
+    )
