@@ -19,6 +19,9 @@ def parse_spss_metadata_file_with_diagnostics(
 ) -> dict[str, list[dict[str, str]]]:
     """
     Parse one syntax file and return both metadata rows and diagnostics.
+
+    This is the safer API for real files because it does not silently discard
+    statements that the metadata parser does not understand.
     """
     text = path.read_text(encoding="utf-8-sig")
     return parse_spss_metadata_text_with_diagnostics(
@@ -34,6 +37,9 @@ def parse_spss_metadata_text(
 ) -> list[dict[str, str]]:
     """
     Parse VARIABLE LABELS and VALUE LABELS statements into flat metadata rows.
+
+    The row shape is intentionally CSV-friendly because the next slice will
+    write these rows as an artifact for review.
     """
     rows: list[dict[str, str]] = []
 
@@ -70,10 +76,14 @@ def parse_spss_metadata_text(
 def parse_spss_metadata_text_with_diagnostics(
     text: str,
     *,
-    source_file: str="",
+    source_file: str = "",
 ) -> dict[str, list[dict[str, str]]]:
     """
-    Parse SPSS metadata rows and collect machine-readable diagnostic.
+    Parse SPSS metadata rows and collect machine-readable diagnostics.
+
+    The existing parse_spss_metadata_text() stays quiet and returns only rows.
+    This function is for real-file review, where ignored statements should be
+    visible instead of disappearing.
     """
     rows: list[dict[str, str]] = []
     diagnostics: list[dict[str, str]] = []
@@ -148,19 +158,16 @@ def parse_spss_metadata_text_with_diagnostics(
             ))
             continue
 
-        diagnostics.append(build_spss_diagnostic(
-            source_file=source_file,
-            source_line=source_line,
-            severity="info",
-            code="UNSUPPORTED_STATEMENT",
-            message="Statement is outside the current SPSS metadata parser scope.",
-            statement=statement,
-        ))
+        # This parser extracts metadata only. Other valid SPSS syntax such as
+        # RECODE, COMPUTE, FILTER, comments, and analysis commands belongs to a
+        # separate lineage/analysis extractor, so it is ignored here instead of
+        # flooding diagnostics.
+        continue
 
     return {
         "metadata_rows": rows,
         "diagnostics": diagnostics,
-    }      
+    }
 
 
 def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
@@ -201,7 +208,9 @@ def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
                 in_quote = not in_quote
 
         # A period ends the statement only when it is outside quoted text.
-        if char == "." and not in_quote:
+        # Decimal values such as 0.5 and -.5 appear often in recodes and must
+        # not split the statement.
+        if char == "." and not in_quote and not is_decimal_point(text, i):
             yield start_line or line, "".join(current).strip()
             current = []
             start_line = None
@@ -255,7 +264,7 @@ def parse_value_labels(statement: str) -> list[dict[str, str]] | None:
 
     if words[0].lower() != "value":
         return None
-    
+
     command_word = words[1].lower()
     if command_word not in {"labels", "labesl"}:
         return None
@@ -297,7 +306,7 @@ def parse_value_labels(statement: str) -> list[dict[str, str]] | None:
 def tokenize_spss_label_body(body: str) -> list[str]:
     """
     Split a label command body into tokens while preserving quoted labels.
-    """  
+    """
     tokens: list[str] = []
     current: list[str] = []
     in_quote = False
@@ -321,7 +330,7 @@ def tokenize_spss_label_body(body: str) -> list[str]:
                 i += 1
             else:
                 in_quote = not in_quote
-        
+
         i += 1
 
     if current:
@@ -347,6 +356,26 @@ def unquote(token: str) -> str:
     if is_quoted(token):
         return token[1:-1].replace("''", "'")
     return token
+
+
+def is_decimal_point(text: str, index: int) -> bool:
+    """
+    Return True when text[index] is part of a numeric decimal literal.
+    """
+    if text[index] != ".":
+        return False
+
+    next_char = text[index + 1] if index + 1 < len(text) else ""
+    if not next_char.isdigit():
+        return False
+
+    previous_char = text[index - 1] if index > 0 else ""
+    return (
+        previous_char.isdigit()
+        or previous_char in {"-", "+"}
+        or previous_char.isspace()
+        or previous_char in {"(", "="}
+    )
 
 
 def build_spss_diagnostic(

@@ -6,12 +6,104 @@ import click
 from ourboro_pipeline.columns import compare_column_sets, propose_y2_mappings
 from ourboro_pipeline.files import read_headers, write_dicts_csv
 from ourboro_pipeline.review import build_y2_mapping_review, generate_review_json, summarize_mappings
+from ourboro_pipeline.spss import parse_spss_metadata_file_with_diagnostics
+
+
+SPSS_METADATA_FIELDS = [
+    "source_file",
+    "source_line",
+    "label_type",
+    "variable",
+    "value",
+    "label",
+]
+
+SPSS_DIAGNOSTIC_FIELDS = [
+    "source_file",
+    "source_line",
+    "severity",
+    "code",
+    "message",
+    "statement",
+]
+
 
 @click.group()
 def main() -> None:
     """
     Ourboro/OIS survey data pipeline tools.
     """
+
+
+@main.command("extract-spss-metadata")
+@click.option(
+    "--syntax-file",
+    "syntax_files",
+    required=True,
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to an SPSS .sps syntax file. Can be provided more than once.",
+)
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=Path),
+    help="Directory where SPSS metadata artifacts will be written.",
+)
+def extract_spss_metadata(
+    syntax_files: tuple[Path, ...],
+    output_dir: Path,
+) -> None:
+    """
+    Extract variable/value label metadata from SPSS syntax files.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    metadata_rows: list[dict[str, str]] = []
+    diagnostics: list[dict[str, str]] = []
+
+    for syntax_file in syntax_files:
+        result = parse_spss_metadata_file_with_diagnostics(syntax_file)
+        metadata_rows.extend(result["metadata_rows"])
+        diagnostics.extend(result["diagnostics"])
+
+    metadata_path = output_dir / "spss_metadata_rows.csv"
+    diagnostics_path = output_dir / "spss_metadata_diagnostics.csv"
+    summary_path = output_dir / "spss_metadata_summary.txt"
+
+    write_dicts_csv(metadata_path, metadata_rows, SPSS_METADATA_FIELDS)
+    write_dicts_csv(diagnostics_path, diagnostics, SPSS_DIAGNOSTIC_FIELDS)
+
+    variable_label_count = sum(
+        1 for row in metadata_rows
+        if row["label_type"] == "variable_label"
+    )
+    value_label_count = sum(
+        1 for row in metadata_rows
+        if row["label_type"] == "value_label"
+    )
+
+    summary = "\n".join([
+        "SPSS Metadata Extraction Summary",
+        "=" * 80,
+        "Syntax files:",
+        *[f"- {path}" for path in syntax_files],
+        "",
+        f"Metadata rows:   {len(metadata_rows)}",
+        f"Variable labels: {variable_label_count}",
+        f"Value labels:    {value_label_count}",
+        f"Diagnostics:     {len(diagnostics)}",
+        "",
+        "Generated files:",
+        f"- {metadata_path}",
+        f"- {diagnostics_path}",
+        f"- {summary_path}",
+    ])
+
+    summary_path.write_text(summary, encoding="utf-8")
+
+    click.echo(summary)
+
 
 @main.command("mapping-review")
 @click.option(
@@ -84,6 +176,7 @@ def mapping_review(mappings_csv: Path, output_dir: Path) -> None:
     click.echo("Generated files:")
     click.echo(f"- {markdown_path}")
     click.echo(f"- {json_path}")
+
 
 @main.command("compare-columns")
 @click.option(

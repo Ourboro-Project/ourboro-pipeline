@@ -57,6 +57,18 @@ def test_handles_escaped_quote_inside_label() -> None:
     ]
 
 
+def test_does_not_split_on_decimal_points_in_recodes() -> None:
+    text = (
+        "Recode Q25_1 (1=1)(2=0.5)(3=-0.5)(4=-1) into Q25_1bal.\n"
+        "Recode Q29_1 (1=1)(2=.5)(3=-.5)(4=-1) into Q29_1bal."
+    )
+
+    assert list(iter_spss_statements(text)) == [
+        (1, "Recode Q25_1 (1=1)(2=0.5)(3=-0.5)(4=-1) into Q25_1bal."),
+        (2, "Recode Q29_1 (1=1)(2=.5)(3=-.5)(4=-1) into Q29_1bal."),
+    ]
+
+
 def test_preserves_incomplete_trailing_statement_for_diagnostics() -> None:
     text = "\n\nVALUE LABELS Q1 1 'Yes'"
 
@@ -294,9 +306,11 @@ VALUE LABELS Q1
     assert result["diagnostics"] == []
 
 
-def test_parse_spss_metadata_text_with_diagnostics_returns_rows_and_diagnostics() -> None:
+def test_parse_spss_metadata_text_with_diagnostics_ignores_out_of_scope_statements() -> None:
     text = """VARIABLE LABELS Q1 'Question one'.
 COMPUTE Q1_copy = Q1.
+RECODE Q1 (1=1)(2=0.5)(3=-0.5) INTO Q1_copy.
+* A comment that is not metadata.
 """
 
     result = parse_spss_metadata_text_with_diagnostics(
@@ -314,16 +328,7 @@ COMPUTE Q1_copy = Q1.
             "label": "Question one",
         },
     ]
-    assert result["diagnostics"] == [
-        {
-            "source_file": "survey.sps",
-            "source_line": "2",
-            "severity": "info",
-            "code": "UNSUPPORTED_STATEMENT",
-            "message": "Statement is outside the current SPSS metadata parser scope.",
-            "statement": "COMPUTE Q1_copy = Q1.",
-        },
-    ]
+    assert result["diagnostics"] == []
 
 
 def test_parse_spss_metadata_text_with_diagnostics_reports_malformed_variable_labels() -> None:
@@ -383,7 +388,7 @@ def test_parse_spss_metadata_text_with_diagnostics_reports_incomplete_statement(
 def test_parse_spss_metadata_file_with_diagnostics_reads_path(tmp_path: Path) -> None:
     syntax_file = tmp_path / "labels.sps"
     syntax_file.write_text(
-        "FREQUENCIES VARIABLES=Q1.",
+        "VALUE LABELS Q1 1 Yes.",
         encoding="utf-8",
     )
 
@@ -394,9 +399,9 @@ def test_parse_spss_metadata_file_with_diagnostics_reads_path(tmp_path: Path) ->
         {
             "source_file": str(syntax_file),
             "source_line": "1",
-            "severity": "info",
-            "code": "UNSUPPORTED_STATEMENT",
-            "message": "Statement is outside the current SPSS metadata parser scope.",
-            "statement": "FREQUENCIES VARIABLES=Q1.",
+            "severity": "warning",
+            "code": "MALFORMED_VALUE_LABELS",
+            "message": "VALUE LABELS statement could not be parsed.",
+            "statement": "VALUE LABELS Q1 1 Yes.",
         },
     ]
