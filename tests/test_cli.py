@@ -252,6 +252,78 @@ def test_extract_spss_metadata_accepts_multiple_syntax_files(tmp_path: Path) -> 
     }
 
 
+def test_build_review_bundle_writes_expected_artifacts(tmp_path: Path) -> None:
+    followup_csv = tmp_path / "followup.csv"
+    master_csv = tmp_path / "master.csv"
+    syntax_file = tmp_path / "labels.sps"
+    output_dir = tmp_path / "review_bundle"
+
+    followup_csv.write_text(
+        "Q1,Q2,extra_followup\n1,2,3\n",
+        encoding="utf-8",
+    )
+    master_csv.write_text(
+        "Y0_Q1,Y1_Q1,Q2\n1,2,3\n",
+        encoding="utf-8",
+    )
+    syntax_file.write_text(
+        "\n".join([
+            "VARIABLE LABELS Q1 'Question one'.",
+            "VALUE LABELS Q1 1 'Yes'.",
+            "VALUE LABELS Q1 1 'Agree'.",
+        ]),
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "build-review-bundle",
+            "--followup-csv",
+            str(followup_csv),
+            "--master-csv",
+            str(master_csv),
+            "--syntax-file",
+            str(syntax_file),
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Ourboro Review Bundle" in result.output
+
+    expected_files = [
+        output_dir / "review_bundle_summary.md",
+        output_dir / "column_comparison" / "column_comparison_summary.txt",
+        output_dir / "column_comparison" / "columns_in_both.csv",
+        output_dir / "column_comparison" / "columns_only_in_followup.csv",
+        output_dir / "column_comparison" / "columns_only_in_master.csv",
+        output_dir / "column_comparison" / "possible_y2_mappings.csv",
+        output_dir / "mapping_review" / "y2_mapping_review.md",
+        output_dir / "mapping_review" / "y2_mappings.json",
+        output_dir / "spss_metadata" / "spss_metadata_rows.csv",
+        output_dir / "spss_metadata" / "spss_metadata_diagnostics.csv",
+        output_dir / "spss_metadata" / "spss_metadata_conflicts.csv",
+        output_dir / "spss_metadata" / "spss_metadata_summary.txt",
+    ]
+
+    for path in expected_files:
+        assert path.exists(), path
+
+    summary = (output_dir / "review_bundle_summary.md").read_text(encoding="utf-8")
+    assert "# Ourboro Review Bundle" in summary
+    assert "## Column Comparison" in summary
+    assert "- Follow-up columns: 3" in summary
+    assert "- Master columns: 3" in summary
+    assert "- Exact columns in both: 1" in summary
+    assert "## SPSS Metadata" in summary
+    assert "- Metadata rows: 3" in summary
+    assert "- Conflict rows: 1" in summary
+    assert "## Review Checklist" in summary
+
+
 def test_extract_spss_metadata_rejects_missing_syntax_file(tmp_path: Path) -> None:
     missing_file = tmp_path / "missing.sps"
     output_dir = tmp_path / "outputs"
