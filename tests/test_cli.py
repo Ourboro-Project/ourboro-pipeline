@@ -114,6 +114,8 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
     assert "Diagnostics:     1" in result.output
     assert "Conflict rows:   1" in result.output
     assert "Conflict warnings: 1" in result.output
+    assert "Conflict codes:" in result.output
+    assert "- CONFLICTING_VALUE_LABEL: 1" in result.output
 
     metadata_path = output_dir / "spss_metadata_rows.csv"
     diagnostics_path = output_dir / "spss_metadata_diagnostics.csv"
@@ -198,6 +200,7 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
     assert str(metadata_path) in summary
     assert str(diagnostics_path) in summary
     assert str(conflicts_path) in summary
+    assert "- CONFLICTING_VALUE_LABEL: 1" in summary
 
 
 def test_extract_spss_metadata_accepts_multiple_syntax_files(tmp_path: Path) -> None:
@@ -232,6 +235,8 @@ def test_extract_spss_metadata_accepts_multiple_syntax_files(tmp_path: Path) -> 
     assert "Metadata rows:   2" in result.output
     assert "Diagnostics:     0" in result.output
     assert "Conflict rows:   0" in result.output
+    assert "Conflict codes:" in result.output
+    assert "- none" in result.output
 
     with (output_dir / "spss_metadata_rows.csv").open(
         "r",

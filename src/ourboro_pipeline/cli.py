@@ -1,5 +1,6 @@
 from pathlib import Path
 import csv
+from collections import Counter
 
 import click
 
@@ -108,6 +109,13 @@ def extract_spss_metadata(
         1 for row in conflicts
         if row["severity"] == "info"
     )
+    conflict_code_counts = Counter(row["code"] for row in conflicts)
+    conflict_code_lines = [
+        f"- {code}: {count}"
+        for code, count in sorted(conflict_code_counts.items())
+    ]
+    if not conflict_code_lines:
+        conflict_code_lines = ["- none"]
 
     summary = "\n".join([
         "SPSS Metadata Extraction Summary",
@@ -122,6 +130,9 @@ def extract_spss_metadata(
         f"Conflict rows:   {len(conflicts)}",
         f"Conflict warnings: {conflict_warning_count}",
         f"Duplicate info:    {duplicate_info_count}",
+        "",
+        "Conflict codes:",
+        *conflict_code_lines,
         "",
         "Generated files:",
         f"- {metadata_path}",
