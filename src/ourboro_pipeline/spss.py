@@ -170,6 +170,82 @@ def parse_spss_metadata_text_with_diagnostics(
     }
 
 
+def detect_spss_metadata_conflicts(
+    rows: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    """
+    Find duplicate and conflicting SPSS label metadata rows.
+
+    The output is CSV-friendly so it can become a review artifact later.
+    """
+    grouped: dict[tuple[str, str, str], list[dict[str, str]]] = {}
+
+    for row in rows:
+        label_type = row.get("label_type", "")
+        variable = row.get("variable", "")
+        value = row.get("value", "")
+
+        if label_type == "variable_label":
+            key = (label_type, variable, "")
+        elif label_type == "value_label":
+            key = (label_type, variable, value)
+        else:
+            continue
+
+        grouped.setdefault(key, []).append(row)
+
+    findings: list[dict[str, str]] = []
+
+    for key, group in sorted(grouped.items()):
+        if len(group) < 2:
+            continue
+
+        label_type, variable, value = key
+        labels = sorted({row.get("label", "") for row in group})
+        sources = sorted({
+            format_spss_source(row)
+            for row in group
+        })
+
+        if len(labels) == 1:
+            code = (
+                "DUPLICATE_VARIABLE_LABEL"
+                if label_type == "variable_label"
+                else "DUPLICATE_VALUE_LABEL"
+            )
+            severity = "info"
+            message = build_duplicate_label_message(
+                label_type=label_type,
+                variable=variable,
+                value=value,
+            )
+        else:
+            code = (
+                "CONFLICTING_VARIABLE_LABEL"
+                if label_type == "variable_label"
+                else "CONFLICTING_VALUE_LABEL"
+            )
+            severity = "warning"
+            message = build_conflicting_label_message(
+                label_type=label_type,
+                variable=variable,
+                value=value,
+            )
+
+        findings.append({
+            "severity": severity,
+            "code": code,
+            "label_type": label_type,
+            "variable": variable,
+            "value": value,
+            "labels": " || ".join(labels),
+            "sources": " ; ".join(sources),
+            "message": message,
+        })
+
+    return findings
+
+
 def iter_spss_statements(text: str) -> Iterable[tuple[int, str]]:
     """
     Yield complete SPSS statements with their starting line numbers.
@@ -356,6 +432,40 @@ def unquote(token: str) -> str:
     if is_quoted(token):
         return token[1:-1].replace("''", "'")
     return token
+
+
+def format_spss_source(row: dict[str, str]) -> str:
+    source_file = row.get("source_file", "")
+    source_line = row.get("source_line", "")
+    if source_file and source_line:
+        return f"{source_file}:{source_line}"
+    if source_file:
+        return source_file
+    if source_line:
+        return f"line {source_line}"
+    return "unknown source"
+
+
+def build_duplicate_label_message(
+    *,
+    label_type: str,
+    variable: str,
+    value: str,
+) -> str:
+    if label_type == "variable_label":
+        return f"Variable {variable} has duplicate identical variable labels."
+    return f"Variable {variable} value {value} has duplicate identical value labels."
+
+
+def build_conflicting_label_message(
+    *,
+    label_type: str,
+    variable: str,
+    value: str,
+) -> str:
+    if label_type == "variable_label":
+        return f"Variable {variable} has conflicting variable labels."
+    return f"Variable {variable} value {value} has conflicting value labels."
 
 
 def is_decimal_point(text: str, index: int) -> bool:

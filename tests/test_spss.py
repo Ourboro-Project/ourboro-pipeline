@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from ourboro_pipeline.spss import (
+    detect_spss_metadata_conflicts,
     iter_spss_statements,
     parse_spss_metadata_file,
     parse_spss_metadata_file_with_diagnostics,
@@ -403,5 +404,164 @@ def test_parse_spss_metadata_file_with_diagnostics_reads_path(tmp_path: Path) ->
             "code": "MALFORMED_VALUE_LABELS",
             "message": "VALUE LABELS statement could not be parsed.",
             "statement": "VALUE LABELS Q1 1 Yes.",
+        },
+    ]
+
+
+def test_detect_spss_metadata_conflicts_returns_empty_for_unique_rows() -> None:
+    rows = [
+        {
+            "source_file": "labels.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+        {
+            "source_file": "labels.sps",
+            "source_line": "2",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+    ]
+
+    assert detect_spss_metadata_conflicts(rows) == []
+
+
+def test_detect_spss_metadata_conflicts_reports_duplicate_variable_label() -> None:
+    rows = [
+        {
+            "source_file": "labels_1.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+        {
+            "source_file": "labels_2.sps",
+            "source_line": "10",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+    ]
+
+    assert detect_spss_metadata_conflicts(rows) == [
+        {
+            "severity": "info",
+            "code": "DUPLICATE_VARIABLE_LABEL",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "labels": "Question one",
+            "sources": "labels_1.sps:1 ; labels_2.sps:10",
+            "message": "Variable Q1 has duplicate identical variable labels.",
+        },
+    ]
+
+
+def test_detect_spss_metadata_conflicts_reports_conflicting_variable_label() -> None:
+    rows = [
+        {
+            "source_file": "labels_1.sps",
+            "source_line": "1",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Question one",
+        },
+        {
+            "source_file": "labels_2.sps",
+            "source_line": "10",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "label": "Changed question one",
+        },
+    ]
+
+    assert detect_spss_metadata_conflicts(rows) == [
+        {
+            "severity": "warning",
+            "code": "CONFLICTING_VARIABLE_LABEL",
+            "label_type": "variable_label",
+            "variable": "Q1",
+            "value": "",
+            "labels": "Changed question one || Question one",
+            "sources": "labels_1.sps:1 ; labels_2.sps:10",
+            "message": "Variable Q1 has conflicting variable labels.",
+        },
+    ]
+
+
+def test_detect_spss_metadata_conflicts_reports_duplicate_value_label() -> None:
+    rows = [
+        {
+            "source_file": "labels_1.sps",
+            "source_line": "2",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+        {
+            "source_file": "labels_2.sps",
+            "source_line": "11",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+    ]
+
+    assert detect_spss_metadata_conflicts(rows) == [
+        {
+            "severity": "info",
+            "code": "DUPLICATE_VALUE_LABEL",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "labels": "Yes",
+            "sources": "labels_1.sps:2 ; labels_2.sps:11",
+            "message": "Variable Q1 value 1 has duplicate identical value labels.",
+        },
+    ]
+
+
+def test_detect_spss_metadata_conflicts_reports_conflicting_value_label() -> None:
+    rows = [
+        {
+            "source_file": "labels_1.sps",
+            "source_line": "2",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Yes",
+        },
+        {
+            "source_file": "labels_2.sps",
+            "source_line": "11",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Agree",
+        },
+    ]
+
+    assert detect_spss_metadata_conflicts(rows) == [
+        {
+            "severity": "warning",
+            "code": "CONFLICTING_VALUE_LABEL",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "labels": "Agree || Yes",
+            "sources": "labels_1.sps:2 ; labels_2.sps:11",
+            "message": "Variable Q1 value 1 has conflicting value labels.",
         },
     ]
