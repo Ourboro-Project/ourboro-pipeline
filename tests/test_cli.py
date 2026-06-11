@@ -90,6 +90,7 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
         "\n".join([
             "VARIABLE LABELS Q1 'Question one'.",
             "VALUE LABELS Q1 1 'Yes' 0 'No'.",
+            "VALUE LABELS Q1 1 'Agree'.",
             "VALUE LABELS Q2 1 Yes.",
         ]),
         encoding="utf-8",
@@ -109,15 +110,19 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert "SPSS Metadata Extraction Summary" in result.output
-    assert "Metadata rows:   3" in result.output
+    assert "Metadata rows:   4" in result.output
     assert "Diagnostics:     1" in result.output
+    assert "Conflict rows:   1" in result.output
+    assert "Conflict warnings: 1" in result.output
 
     metadata_path = output_dir / "spss_metadata_rows.csv"
     diagnostics_path = output_dir / "spss_metadata_diagnostics.csv"
+    conflicts_path = output_dir / "spss_metadata_conflicts.csv"
     summary_path = output_dir / "spss_metadata_summary.txt"
 
     assert metadata_path.exists()
     assert diagnostics_path.exists()
+    assert conflicts_path.exists()
     assert summary_path.exists()
 
     with metadata_path.open("r", encoding="utf-8", newline="") as f:
@@ -148,6 +153,14 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
             "value": "0",
             "label": "No",
         },
+        {
+            "source_file": str(syntax_file),
+            "source_line": "3",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "label": "Agree",
+        },
     ]
 
     with diagnostics_path.open("r", encoding="utf-8", newline="") as f:
@@ -156,7 +169,7 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
     assert diagnostics == [
         {
             "source_file": str(syntax_file),
-            "source_line": "3",
+            "source_line": "4",
             "severity": "warning",
             "code": "MALFORMED_VALUE_LABELS",
             "message": "VALUE LABELS statement could not be parsed.",
@@ -164,10 +177,27 @@ def test_extract_spss_metadata_writes_artifacts(tmp_path: Path) -> None:
         },
     ]
 
+    with conflicts_path.open("r", encoding="utf-8", newline="") as f:
+        conflicts = list(csv.DictReader(f))
+
+    assert conflicts == [
+        {
+            "severity": "warning",
+            "code": "CONFLICTING_VALUE_LABEL",
+            "label_type": "value_label",
+            "variable": "Q1",
+            "value": "1",
+            "labels": "Agree || Yes",
+            "sources": f"{syntax_file}:2 ; {syntax_file}:3",
+            "message": "Variable Q1 value 1 has conflicting value labels.",
+        },
+    ]
+
     summary = summary_path.read_text(encoding="utf-8")
     assert str(syntax_file) in summary
     assert str(metadata_path) in summary
     assert str(diagnostics_path) in summary
+    assert str(conflicts_path) in summary
 
 
 def test_extract_spss_metadata_accepts_multiple_syntax_files(tmp_path: Path) -> None:
@@ -201,6 +231,7 @@ def test_extract_spss_metadata_accepts_multiple_syntax_files(tmp_path: Path) -> 
     assert result.exit_code == 0, result.output
     assert "Metadata rows:   2" in result.output
     assert "Diagnostics:     0" in result.output
+    assert "Conflict rows:   0" in result.output
 
     with (output_dir / "spss_metadata_rows.csv").open(
         "r",

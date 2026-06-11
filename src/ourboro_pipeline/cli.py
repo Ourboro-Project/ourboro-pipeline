@@ -6,7 +6,10 @@ import click
 from ourboro_pipeline.columns import compare_column_sets, propose_y2_mappings
 from ourboro_pipeline.files import read_headers, write_dicts_csv
 from ourboro_pipeline.review import build_y2_mapping_review, generate_review_json, summarize_mappings
-from ourboro_pipeline.spss import parse_spss_metadata_file_with_diagnostics
+from ourboro_pipeline.spss import (
+    detect_spss_metadata_conflicts,
+    parse_spss_metadata_file_with_diagnostics,
+)
 
 
 SPSS_METADATA_FIELDS = [
@@ -25,6 +28,17 @@ SPSS_DIAGNOSTIC_FIELDS = [
     "code",
     "message",
     "statement",
+]
+
+SPSS_CONFLICT_FIELDS = [
+    "severity",
+    "code",
+    "label_type",
+    "variable",
+    "value",
+    "labels",
+    "sources",
+    "message",
 ]
 
 
@@ -67,12 +81,16 @@ def extract_spss_metadata(
         metadata_rows.extend(result["metadata_rows"])
         diagnostics.extend(result["diagnostics"])
 
+    conflicts = detect_spss_metadata_conflicts(metadata_rows)
+
     metadata_path = output_dir / "spss_metadata_rows.csv"
     diagnostics_path = output_dir / "spss_metadata_diagnostics.csv"
+    conflicts_path = output_dir / "spss_metadata_conflicts.csv"
     summary_path = output_dir / "spss_metadata_summary.txt"
 
     write_dicts_csv(metadata_path, metadata_rows, SPSS_METADATA_FIELDS)
     write_dicts_csv(diagnostics_path, diagnostics, SPSS_DIAGNOSTIC_FIELDS)
+    write_dicts_csv(conflicts_path, conflicts, SPSS_CONFLICT_FIELDS)
 
     variable_label_count = sum(
         1 for row in metadata_rows
@@ -81,6 +99,14 @@ def extract_spss_metadata(
     value_label_count = sum(
         1 for row in metadata_rows
         if row["label_type"] == "value_label"
+    )
+    conflict_warning_count = sum(
+        1 for row in conflicts
+        if row["severity"] == "warning"
+    )
+    duplicate_info_count = sum(
+        1 for row in conflicts
+        if row["severity"] == "info"
     )
 
     summary = "\n".join([
@@ -93,10 +119,14 @@ def extract_spss_metadata(
         f"Variable labels: {variable_label_count}",
         f"Value labels:    {value_label_count}",
         f"Diagnostics:     {len(diagnostics)}",
+        f"Conflict rows:   {len(conflicts)}",
+        f"Conflict warnings: {conflict_warning_count}",
+        f"Duplicate info:    {duplicate_info_count}",
         "",
         "Generated files:",
         f"- {metadata_path}",
         f"- {diagnostics_path}",
+        f"- {conflicts_path}",
         f"- {summary_path}",
     ])
 
