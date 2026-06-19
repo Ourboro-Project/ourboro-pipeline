@@ -342,3 +342,54 @@ def test_extract_spss_metadata_rejects_missing_syntax_file(tmp_path: Path) -> No
 
     assert result.exit_code != 0
     assert "does not exist" in result.output
+
+
+
+def test_rough_merge_followup_command_writes_merged_csv(tmp_path: Path) -> None:
+    master_csv = tmp_path / "master.csv"
+    followup_csv = tmp_path / "followup.csv"
+    mappings_csv = tmp_path / "possible_y2_mappings.csv"
+    output_csv = tmp_path / "merged.csv"
+
+    master_csv.write_text(
+        "Case,Y1_Q1\n1,old\n",
+        encoding="utf-8",
+    )
+    followup_csv.write_text(
+        "Q1,BrokerPanelId\nnew,bp-1\n",
+        encoding="utf-8",
+    )
+    mappings_csv.write_text(
+        "followup_column,proposed_target_column\n"
+        "Q1,Y2_Q1\n"
+        "BrokerPanelId,\n",
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        main,
+        [
+            "rough-merge-followup",
+            "--master-csv",
+            str(master_csv),
+            "--followup-csv",
+            str(followup_csv),
+            "--mappings-csv",
+            str(mappings_csv),
+            "--output-csv",
+            str(output_csv),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Rough Follow-up Master Merge" in result.output
+    assert "Master rows:         1" in result.output
+    assert "Follow-up rows:      1" in result.output
+    assert "New columns added:   2" in result.output
+
+    with output_csv.open("r", encoding="utf-8", newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    assert rows[-1]["Y2_Q1"] == "new"
+    assert rows[-1]["Y2_BrokerPanelId"] == "bp-1"

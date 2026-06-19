@@ -11,7 +11,7 @@ from ourboro_pipeline.spss import (
     detect_spss_metadata_conflicts,
     parse_spss_metadata_file_with_diagnostics,
 )
-
+from ourboro_pipeline.merge import merge_followup_into_master_csv
 
 SPSS_METADATA_FIELDS = [
     "source_file",
@@ -520,3 +520,71 @@ def compare_columns(followup_csv: Path, master_csv: Path, output_dir: Path) -> N
     summary_path.write_text(summary, encoding="utf-8")
 
     click.echo(summary)
+
+
+@main.command("rough-merge-followup")
+@click.option(
+    "--master-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to the existing master CSV.",
+)
+@click.option(
+    "--followup-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to the follow-up CSV to append.",
+)
+@click.option(
+    "--mappings-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to possible_y2_mappings.csv.",
+)
+@click.option(
+    "--output-csv",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="Output path for the rough merged master CSV.",
+)
+def rough_merge_followup(
+    master_csv: Path,
+    followup_csv: Path,
+    mappings_csv: Path,
+    output_csv: Path,
+) -> None:
+    """
+    Roughly append follow-up rows into the master CSV using proposed mappings.
+    """
+    try:
+        summary = merge_followup_into_master_csv(
+            master_csv=master_csv,
+            followup_csv=followup_csv,
+            mappings_csv=mappings_csv,
+            output_csv=output_csv,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    click.echo("Rough Follow-up Master Merge")
+    click.echo("=" * 80)
+    click.echo(f"Master CSV:   {master_csv}")
+    click.echo(f"Follow-up CSV:{followup_csv}")
+    click.echo(f"Mappings CSV: {mappings_csv}")
+    click.echo(f"Output CSV:   {summary['output_csv']}")
+    click.echo("")
+    click.echo(f"Master encoding:     {summary['master_encoding']}")
+    click.echo(f"Master rows:         {summary['master_rows']}")
+    click.echo(f"Follow-up rows:      {summary['followup_rows']}")
+    click.echo(f"Output rows:         {summary['output_rows']}")
+    click.echo(f"Master columns:      {summary['master_columns']}")
+    click.echo(f"Output columns:      {summary['output_columns']}")
+    click.echo(f"New columns added:   {summary['new_columns_added']}")
+    click.echo(f"Mappings used:       {summary['mappings_used']}")
+
+    unmapped = summary["unmapped_followup_columns"]
+    if unmapped:
+        click.echo("")
+        click.echo("Unmapped follow-up columns:")
+        for column in unmapped:
+            click.echo(f"- {column}")
