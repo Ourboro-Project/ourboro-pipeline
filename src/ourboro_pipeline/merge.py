@@ -7,6 +7,7 @@ from typing import TextIO
 
 MASTER_ENCODINGS = ["latin-1"]
 
+
 def clean_fieldnames(fieldnames: list[str]) -> list[str]:
     """Normalize header artifacts from fallback decoding."""
     if not fieldnames:
@@ -66,6 +67,15 @@ def build_followup_to_master_map(rows: list[dict[str, str]]) -> dict[str, str]:
     return result
 
 
+def is_qualtrics_metadata_row(row: dict[str, str]) -> bool:
+    """Return whether a follow-up row contains Qualtrics import metadata."""
+    response_id = (row.get("ResponseId") or "").strip()
+    return (
+        response_id == "Response ID"
+        or response_id.startswith('{"ImportId"')
+    )
+
+
 def merge_followup_into_master_csv(
     *,
     master_csv: Path,
@@ -117,6 +127,9 @@ def merge_followup_into_master_csv(
 
                 followup_rows = 0
                 for row in followup_reader:
+                    if is_qualtrics_metadata_row(row):
+                        continue
+
                     output_row = {field: "" for field in output_fields}
                     for source, target in followup_to_master.items():
                         if source in row and target in output_row:
