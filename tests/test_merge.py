@@ -91,3 +91,46 @@ def test_merge_followup_into_master_csv_appends_mapped_rows(tmp_path: Path) -> N
             "Y2_BrokerPanelId": "bp-1",
         },
     ]
+
+def test_merge_followup_into_master_csv_skips_qualtrics_metadata_rows(tmp_path: Path) -> None:
+    master_csv = tmp_path / "master.csv"
+    followup_csv = tmp_path / "followup.csv"
+    mappings_csv = tmp_path / "mappings.csv"
+    output_csv = tmp_path / "merged.csv"
+
+    master_csv.write_text(
+        "Case,Name\n"
+        "1,Alice\n",
+        encoding="utf-8",
+    )
+
+    followup_csv.write_text(
+        'ResponseId,BrokerPanelId,Name\n'
+        'Response ID,ImportId,Name\n'
+        '{"ImportId":"ResponseId"},ImportId,Name\n'
+        "R-123,B-123,Bob\n",
+        encoding="utf-8",
+    )
+
+    mappings_csv.write_text(
+        "followup_column,proposed_target_column\n"
+        "Name,Name\n"
+        "BrokerPanelId,Y2_BrokerPanelId\n",
+        encoding="utf-8",
+    )
+
+    result = merge_followup_into_master_csv(
+        master_csv=master_csv,
+        followup_csv=followup_csv,
+        mappings_csv=mappings_csv,
+        output_csv=output_csv,
+    )
+
+    assert result["master_rows"] == 1
+    assert result["followup_rows"] == 1
+    assert result["output_rows"] == 2
+
+    merged_text = output_csv.read_text(encoding="utf-8")
+    assert "Response ID" not in merged_text
+    assert '{"ImportId":"ResponseId"}' not in merged_text
+    assert "Bob" in merged_text
