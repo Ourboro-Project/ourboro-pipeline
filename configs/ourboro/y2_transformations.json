@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "project": "ourboro",
+  "wave": "Y2",
+  "expected": {
+    "input_rows": 1635,
+    "input_columns": 126,
+    "derived_columns": 80,
+    "output_columns": 206,
+    "id_column": "ResponseId"
+  },
+  "sav_alignment": {
+    "date_columns": ["StartDate", "EndDate", "RecordedDate"],
+    "empty_numeric_columns": [
+      "ExternalReference",
+      "RecipientEmail",
+      "RecipientFirstName",
+      "RecipientLastName"
+    ]
+  },
+  "transformations": [
+    {"operation": "recode", "source": "Q25_3", "target": "Q25_3di", "values": {"1": 1, "2": 1, "3": 0, "4": 0}},
+    {"operation": "recode", "source": "Q25_4", "target": "Q25_4di", "values": {"1": 1, "2": 1, "3": 0, "4": 0}},
+    {"operation": "strict_average", "sources": ["Q25_3di", "Q25_4di"], "target": "NeverOwnTri"},
+    {"operation": "recode", "source": "NeverOwnTri", "target": "NeverOwnTriDI", "values": {"1": 1, "0.5": 0, "0": 0}},
+    {"operation": "recode", "source": "NeverOwnTri", "target": "NeverOwnTriDIa", "values": {"1": 1, "0.5": 1, "0": 0}},
+    {"operation": "recode_many", "pairs": [["Q25_1", "Q25_1bal"], ["Q25_2", "Q25_2bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode", "source": "Q12", "target": "Q12di", "values": {"1": 1, "2": 0}},
+    {"operation": "recode", "source": "Q12", "target": "Q12bal", "values": {"1": 1, "2": -1}},
+
+    {"operation": "recode", "source": "Q24", "target": "buynextyear", "values": {"1": 1, "2": 0, "3": 0}, "else": "missing", "value_labels": {"1": "Plan to purchase a home or condominium in the next year", "0": "Plan to stay where you are or move to a rental in the next year"}},
+    {"operation": "recode", "source": "Q63", "target": "edjCollapsed", "ranges": [[1, 5, 1], [6, 7, 2], [8, 9, 3], [10, 12, 4]], "else": "missing", "value_labels": {"1": "High school or less", "2": "Attended college", "3": "Attended university", "4": "Graduate degree"}},
+    {"operation": "recode", "source": "Q32", "target": "Q32order", "values": {"1": 1, "2": -1, "3": 0}, "value_labels": {"1": "Better shape", "-1": "Worse shape", "0": "No difference"}},
+    {"operation": "recode", "source": "Q33", "target": "Q33order", "values": {"1": 1, "2": -1, "3": 0}, "value_labels": {"1": "Gotten better", "-1": "Gotten worse", "0": "Stayed about the same"}},
+    {"operation": "multiply_many", "pairs": [["buynextyear", "buynextyearB"], ["Q25_3", "Q25_3B"], ["Q25_4", "Q25_4B"]], "factor": -1},
+    {"operation": "recode", "source": "buynextyear", "target": "buynextyearBAL", "values": {"1": 1, "0": -1}},
+    {"operation": "recode_many", "pairs": [["Q23_1", "Q23_1bal"], ["Q23_2", "Q23_2bal"], ["Q23_3", "Q23_3bal"], ["Q23_4", "Q23_4bal"], ["Q23_5", "Q23_5bal"], ["Q23_6", "Q23_6bal"], ["Q23_7", "Q23_7bal"]], "values": {"1": 1, "2": 0.5, "3": 0, "4": -0.5, "5": -1}},
+    {"operation": "recode", "source": "Q21", "target": "Q21bal", "values": {"1": 1, "2": 0, "3": -1}},
+    {"operation": "recode", "source": "Q22", "target": "Q22bal", "values": {"1": 1, "2": 0.5, "3": 0, "4": -0.5, "5": -1}},
+    {"operation": "recode", "source": "Q21", "target": "Q21di", "values": {"1": 0, "2": 1, "3": 1}, "value_labels": {"1": "Repairs needed", "0": "No repairs needed"}},
+    {"operation": "recode_many", "pairs": [["Q29_1", "Q29_1bal"], ["Q29_2", "Q29_2bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "multiply_many", "pairs": [["Q29_3", "Q29_3b"], ["Q29_4", "Q29_4b"], ["Q30", "Q30b"], ["Q31", "Q31b"]], "factor": -1},
+    {"operation": "recode_many", "pairs": [["Q25_3", "Q25_3bal"], ["Q25_4", "Q25_4bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode_many", "pairs": [["Q26", "Q26di"], ["Q27", "Q27di"], ["Q28", "Q28di"]], "values": {"1": 1, "2": 0}},
+    {"operation": "recode_many", "pairs": [["Q29_3", "Q29_3bal"], ["Q29_4", "Q29_4bal"]], "values": {"1": -1, "2": -0.5, "3": 0.5, "4": 1}},
+    {"operation": "recode_many", "pairs": [["Q29_5", "Q29_5bal"], ["Q29_6", "Q29_6bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode", "source": "Q30", "target": "Q30bal", "values": {"1": -1, "2": -0.5, "3": 0, "4": 0.5, "5": 1}},
+    {"operation": "recode_many", "pairs": [["Q2", "Q2bal"], ["Q3", "Q3bal"], ["Q4", "Q4bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode", "source": "Q49", "target": "Q49bal", "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1, "5": 0}},
+    {"operation": "recode", "source": "Q49", "target": "Q49bal2", "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1, "5": "missing"}},
+    {"operation": "recode_many", "pairs": [["Q50_1", "Q50_1bal"], ["Q50_2", "Q50_2bal"], ["Q50_3", "Q50_3bal"], ["Q50_4", "Q50_4bal"], ["Q50_5", "Q50_5bal"], ["Q50_6", "Q50_6bal"], ["Q50_7", "Q50_7bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode_many", "pairs": [["Q52_1", "Q52_1bal"], ["Q52_2", "Q52_2bal"], ["Q52_3", "Q52_3bal"], ["Q52_4", "Q52_4bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+    {"operation": "recode_many", "pairs": [["Q58_1", "Q58_1bal"], ["Q58_2", "Q58_2bal"], ["Q58_3", "Q58_3bal"], ["Q58_4", "Q58_4bal"], ["Q58_5", "Q58_5bal"], ["Q58_6", "Q58_6bal"], ["Q58_7", "Q58_7bal"], ["Q58_8", "Q58_8bal"]], "values": {"1": 1, "2": 0.5, "3": -0.5, "4": -1}},
+
+    {"operation": "conditional_assign", "target": "DownpaymentSaved", "default": "missing", "rules": [{"when": [{"column": "Q12", "equals": 2}], "value": 0}, {"when": [{"column": "Q12", "equals": 1}, {"column": "Q13", "between": [1, 600000]}], "copy": "Q13"}]},
+    {"operation": "conditional_assign", "target": "Q44di", "default": "missing", "rules": [{"when": [{"column": "Q41", "equals": 2}], "value": 0}, {"when": [{"column": "Q41", "equals": 1}, {"column": "Q44", "between": [1, 3]}], "value": 0}, {"when": [{"column": "Q41", "equals": 1}, {"column": "Q44", "between": [4, 6]}], "value": 1}], "value_labels": {"1": "Saved so far $10k or more", "0": "Saved so far less than $10k"}},
+    {"operation": "conditional_assign", "target": "Q45di", "default": "missing", "rules": [{"when": [{"column": "Q42", "equals": 2}], "value": 0}, {"when": [{"column": "Q42", "equals": 1}, {"column": "Q45", "between": [1, 3]}], "value": 0}, {"when": [{"column": "Q42", "equals": 1}, {"column": "Q45", "between": [4, 6]}], "value": 1}], "value_labels": {"1": "Saved $10k or more", "0": "Saved less than $10k"}},
+    {"operation": "strict_average", "sources": ["Q25_3bal", "Q25_4bal"], "target": "alwaysrentersweakDEX"},
+    {"operation": "strict_average", "sources": ["Q12bal", "Q25_1bal", "Q25_2bal"], "target": "PlanBuyDEX"},
+    {"operation": "strict_average", "sources": ["Q12bal", "Q25_1bal", "Q25_2bal", "buynextyearBAL"], "target": "PlanBuy2DEX"},
+    {"operation": "strict_average", "sources": ["Q26di", "Q27di", "Q28di"], "target": "ActiveLookingDEX"},
+    {"operation": "strict_average", "sources": ["Q23_1bal", "Q23_2bal"], "target": "homemeetsneedsDEX"},
+    {"operation": "strict_average", "sources": ["Q29_5bal", "Q29_6bal", "Q29_3bal", "Q29_4bal", "Q30bal"], "target": "EconomicResilDEX"},
+    {"operation": "strict_average", "sources": ["Q29_1bal", "Q29_2bal"], "target": "LifeHappyDEX"},
+    {"operation": "strict_average", "sources": ["Q2bal", "Q3bal", "Q4bal"], "target": "NeighCommunityDEX"},
+    {"operation": "strict_average", "sources": ["Q52_1bal", "Q52_2bal", "Q52_3bal"], "target": "AlternFinPlanDEX"},
+    {"operation": "strict_average", "sources": ["Q52_3bal", "Q52_4bal"], "target": "MortgagePlanDEX"}
+  ]
+}

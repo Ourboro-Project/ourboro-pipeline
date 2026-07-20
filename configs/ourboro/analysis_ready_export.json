@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "respondent_id_source_columns": [
+    "PSIDBrokerID",
+    "ResponseId",
+    "Y0_ResponseId",
+    "Y1_ResponseId",
+    "Y2_ResponseId"
+  ],
+  "cluster_join_column": "respondent_id",
+  "cluster_label_column": "cluster_label",
+  "wave_column": "wave",
+  "waves": {
+    "Y0": {
+      "prefix": "Y0_"
+    },
+    "Y1": {
+      "prefix": "Y1_"
+    },
+    "Y2": {
+      "prefix": "Y2_"
+    }
+  },
+  "exclude_stems": [
+    "ResponseId",
+    "BrokerPanelId",
+    "HIDBrokerPanelId",
+    "crosswalk_original_id",
+    "crosswalk_status"
+  ],
+  "drop_all_missing_rows": true
+}

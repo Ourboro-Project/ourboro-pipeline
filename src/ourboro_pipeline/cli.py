@@ -7,11 +7,14 @@ import click
 from ourboro_pipeline.columns import compare_column_sets, propose_y2_mappings
 from ourboro_pipeline.files import read_headers, write_dicts_csv
 from ourboro_pipeline.review import build_y2_mapping_review, generate_review_json, summarize_mappings
+from ourboro_pipeline.analysis_ready import export_analysis_ready_long
 from ourboro_pipeline.spss import (
     detect_spss_metadata_conflicts,
     parse_spss_metadata_file_with_diagnostics,
 )
 from ourboro_pipeline.merge import merge_followup_into_master_csv
+from ourboro_pipeline.linked import build_linked_master
+from ourboro_pipeline.transform import transform_wave, validate_transformation
 
 SPSS_METADATA_FIELDS = [
     "source_file",
@@ -588,3 +591,199 @@ def rough_merge_followup(
         click.echo("Unmapped follow-up columns:")
         for column in unmapped:
             click.echo(f"- {column}")
+
+
+@main.command("transform-wave")
+@click.option("--input-csv", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--master-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--config", "config_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output-csv", required=True, type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--output-sav", required=True, type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--report-json", required=True, type=click.Path(dir_okay=False, path_type=Path))
+def transform_wave_command(
+    input_csv: Path,
+    master_sav: Path,
+    config_path: Path,
+    output_csv: Path,
+    output_sav: Path,
+    report_json: Path,
+) -> None:
+    """Apply reviewed wave transformations and write aligned CSV/SAV outputs."""
+    try:
+        report = transform_wave(
+            input_csv=input_csv,
+            master_sav=master_sav,
+            config_path=config_path,
+            output_csv=output_csv,
+            output_sav=output_sav,
+            report_json=report_json,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(
+        f"Transformed {report['output_rows']} rows and {report['output_columns']} columns."
+    )
+    click.echo(f"CSV: {output_csv}")
+    click.echo(f"SAV: {output_sav}")
+    click.echo(f"Report: {report_json}")
+
+
+@main.command("validate-transform")
+@click.option("--candidate-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--oracle-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--report-json", required=True, type=click.Path(dir_okay=False, path_type=Path))
+def validate_transform_command(
+    candidate_sav: Path,
+    oracle_sav: Path,
+    report_json: Path,
+) -> None:
+    """Require a transformed SAV to match the reviewed PSPP oracle."""
+    try:
+        report = validate_transformation(
+            candidate_sav=candidate_sav,
+            oracle_sav=oracle_sav,
+            report_json=report_json,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(
+        f"PSPP oracle validation passed: {report['rows']} rows, {report['columns']} columns."
+    )
+
+
+@main.command("build-linked-master")
+@click.option("--master-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--followup-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--crosswalk-xlsx", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output-csv", required=True, type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--output-sav", required=True, type=click.Path(dir_okay=False, path_type=Path))
+@click.option("--report-json", required=True, type=click.Path(dir_okay=False, path_type=Path))
+def build_linked_master_command(
+    master_sav: Path,
+    followup_sav: Path,
+    crosswalk_xlsx: Path,
+    output_csv: Path,
+    output_sav: Path,
+    report_json: Path,
+) -> None:
+    """Link a transformed follow-up wave into the existing master SAV."""
+    try:
+        report = build_linked_master(
+            master_sav=master_sav,
+            followup_sav=followup_sav,
+            crosswalk_xlsx=crosswalk_xlsx,
+            output_csv=output_csv,
+            output_sav=output_sav,
+            report_json=report_json,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    counts = report["counts"]
+    click.echo(
+        f"Linked master written: {counts['output_rows']} rows, {counts['output_columns']} columns."
+    )
+
+
+@main.command("build-y2-master")
+@click.option("--input-csv", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--master-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--crosswalk-xlsx", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--oracle-sav", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--config", "config_path", required=True, type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--output-dir", required=True, type=click.Path(file_okay=False, path_type=Path))
+def build_y2_master_command(
+    input_csv: Path,
+    master_sav: Path,
+    crosswalk_xlsx: Path,
+    oracle_sav: Path,
+    config_path: Path,
+    output_dir: Path,
+) -> None:
+    """Transform, oracle-validate, and link the reviewed Y2 follow-up."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    transformed_csv = output_dir / "followup_transformed_y2.csv"
+    transformed_sav = output_dir / "followup_transformed_y2.sav"
+    try:
+        transform_wave(
+            input_csv=input_csv,
+            master_sav=master_sav,
+            config_path=config_path,
+            output_csv=transformed_csv,
+            output_sav=transformed_sav,
+            report_json=output_dir / "followup_transform_report.json",
+        )
+        validate_transformation(
+            candidate_sav=transformed_sav,
+            oracle_sav=oracle_sav,
+            report_json=output_dir / "followup_oracle_validation.json",
+        )
+        report = build_linked_master(
+            master_sav=master_sav,
+            followup_sav=transformed_sav,
+            crosswalk_xlsx=crosswalk_xlsx,
+            output_csv=output_dir / "ourboro_master_linked_y2.csv",
+            output_sav=output_dir / "ourboro_master_linked_y2.sav",
+            report_json=output_dir / "ourboro_master_linked_y2_report.json",
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    counts = report["counts"]
+    click.echo("Y2 master build passed PSPP oracle validation.")
+    click.echo(f"Final rows: {counts['output_rows']}")
+    click.echo(f"Final columns: {counts['output_columns']}")
+    click.echo(f"Output directory: {output_dir}")
+
+
+@main.command("export-analysis-ready")
+@click.option(
+    "--linked-master-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--clusters-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--output-csv",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--report-json",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+def export_analysis_ready_command(
+    linked_master_csv: Path,
+    clusters_csv: Path,
+    config_path: Path,
+    output_csv: Path,
+    report_json: Path,
+) -> None:
+    """Export a long analysis-ready dataset for the ANOVA engine."""
+    try:
+        report = export_analysis_ready_long(
+            linked_master_csv=linked_master_csv,
+            clusters_csv=clusters_csv,
+            config_path=config_path,
+            output_csv=output_csv,
+            report_json=report_json,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    counts = report["counts"]
+    click.echo("Analysis-ready export complete.")
+    click.echo(f"Rows: {counts['analysis_ready_rows']}")
+    click.echo(f"Distinct respondent_id: {counts['distinct_respondent_id']}")
+    click.echo(f"DVs: {counts['dv_columns']}")
+    click.echo(f"CSV: {output_csv}")
+    click.echo(f"Report: {report_json}")

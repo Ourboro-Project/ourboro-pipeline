@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "reviewed_pspp_baseline",
+  "source_syntax": {
+    "filename": "OIS - SyntaxWorkingFile Jan 15 25 V7ap.sps",
+    "sha256": "78bebd602bb98d4c80bcd4c11394a9f1ea5db22bb8cf8377b59292022dc3e9b6"
+  },
+  "repaired_slices": [
+    {"filename": "pspp_transform_slice_01.sps", "sha256": "0f90ac18323ccd3a9718f4253f96e4ad4dc9a7a5681b257dceea376ce26cffa0"},
+    {"filename": "pspp_transform_slice_02.sps", "sha256": "0919865d6764ced45ca5e92b9b14dbb519bc95bae28f5928f60aa8ec001335be"},
+    {"filename": "pspp_transform_slice_03.sps", "sha256": "32974eaad6301df3fdd31248582907881d71298a2121a624b100b2de91820ac7"}
+  ],
+  "oracle": {
+    "filename": "followup_transformed_aligned.sav",
+    "sha256": "cefa3047a940eb4b410e9ef4de623d34cda515ded3c8f681f62f6d188a9c58c1",
+    "rows": 1635,
+    "columns": 206,
+    "derived_columns": 80
+  },
+  "corrections": [
+    "Separated transformation commands from filters, weights, clustering, and analyses.",
+    "Replaced conflicting NeverOwnTri recodes with one ordered computation.",
+    "Corrected the VALUE LABELS spelling for buynextyear.",
+    "Assigned Q33order labels to Q33order instead of Q32order.",
+    "Replaced overlapping DownpaymentSaved recodes with ordered routed assignments.",
+    "Replaced overlapping Q44di and Q45di recodes with ordered routed assignments.",
+    "Assigned Q45di value labels to Q45di instead of Q44di.",
+    "Included only composite indices whose complete source-variable sets exist in Y2."
+  ]
+}
