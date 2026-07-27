@@ -7,7 +7,7 @@ import click
 from ourboro_pipeline.columns import compare_column_sets, propose_y2_mappings
 from ourboro_pipeline.files import read_headers, write_dicts_csv
 from ourboro_pipeline.review import build_y2_mapping_review, generate_review_json, summarize_mappings
-from ourboro_pipeline.analysis_ready import export_analysis_ready_long
+from ourboro_pipeline.analysis_ready import build_cluster_assignments, export_analysis_ready_long
 from ourboro_pipeline.spss import (
     detect_spss_metadata_conflicts,
     parse_spss_metadata_file_with_diagnostics,
@@ -732,6 +732,52 @@ def build_y2_master_command(
     click.echo(f"Final rows: {counts['output_rows']}")
     click.echo(f"Final columns: {counts['output_columns']}")
     click.echo(f"Output directory: {output_dir}")
+
+
+@main.command("build-cluster-assignments")
+@click.option(
+    "--linked-master-csv",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--config",
+    "config_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--output-csv",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--report-json",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+)
+def build_cluster_assignments_command(
+    linked_master_csv: Path,
+    config_path: Path,
+    output_csv: Path,
+    report_json: Path,
+) -> None:
+    """Build approved labeled cluster assignments from the linked master."""
+    try:
+        report = build_cluster_assignments(
+            linked_master_csv=linked_master_csv,
+            config_path=config_path,
+            output_csv=output_csv,
+            report_json=report_json,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    counts = report["counts"]
+    click.echo("Cluster assignment build complete.")
+    click.echo(f"Assignments: {counts['included_cluster_assignments']}")
+    click.echo(f"CSV: {output_csv}")
+    click.echo(f"Report: {report_json}")
 
 
 @main.command("export-analysis-ready")

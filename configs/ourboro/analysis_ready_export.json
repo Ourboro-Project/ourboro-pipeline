@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "respondent_id_source_columns": [
     "PSIDBrokerID",
     "ResponseId",
@@ -8,7 +8,19 @@
     "Y2_ResponseId"
   ],
   "cluster_join_column": "respondent_id",
+  "cluster_source_column": "TSC_RentOtherCategories_Ourboro",
+  "cluster_code_column": "cluster_code",
   "cluster_label_column": "cluster_label",
+  "cluster_labels": {
+    "1": "Looked in the past but no longer planning",
+    "2": "Looking and planning",
+    "3": "Planning to buy not yet seriously looking",
+    "4": "Not looking will buy eventually",
+    "5": "Not looking not planning",
+    "6": "Ourboro clients"
+  },
+  "included_cluster_codes": ["1", "2", "3", "4", "5"],
+  "missing_cluster_policy": "exclude",
   "wave_column": "wave",
   "waves": {
     "Y0": {
